@@ -5,7 +5,12 @@
 package gin
 
 import (
+	"encoding/json"
 	"errors"
+	"github.com/gin-gonic/gin/binding"
+	"github.com/gin-gonic/gin/render"
+	"github.com/manucorporat/sse"
+	"golang.org/x/net/context"
 	"io"
 	"math"
 	"net"
@@ -13,11 +18,6 @@ import (
 	"net/url"
 	"strings"
 	"time"
-
-	"github.com/gin-gonic/gin/binding"
-	"github.com/gin-gonic/gin/render"
-	"github.com/manucorporat/sse"
-	"golang.org/x/net/context"
 )
 
 // Content-Type MIME of the most common data formats
@@ -69,7 +69,7 @@ func (c *Context) reset() {
 // Copy returns a copy of the current context that can be safely used outside the request's scope.
 // This have to be used then the context has to be passed to a goroutine.
 func (c *Context) Copy() *Context {
-	var cp = *c
+	var cp Context = *c
 	cp.writermem.ResponseWriter = nil
 	cp.Writer = &cp.writermem
 	cp.index = abortIndex
@@ -77,7 +77,7 @@ func (c *Context) Copy() *Context {
 	return &cp
 }
 
-// HandlerName returns the main handler's name. For example if the handler is "handleGetUsers()", this
+// HandlerName returns the main handle's name. For example if the handler is "handleGetUsers()", this
 // function will return "main.handleGetUsers"
 func (c *Context) HandlerName() string {
 	return nameOfFunction(c.handlers.Last())
@@ -98,7 +98,7 @@ func (c *Context) Next() {
 	}
 }
 
-// IsAborted returns true if the current context was aborted.
+// IsAborted returns true if the currect context was aborted.
 func (c *Context) IsAborted() bool {
 	return c.index >= abortIndex
 }
@@ -115,7 +115,6 @@ func (c *Context) Abort() {
 // For example, a failed attempt to authentificate a request could use: context.AbortWithStatus(401).
 func (c *Context) AbortWithStatus(code int) {
 	c.Status(code)
-	c.Writer.WriteHeaderNow()
 	c.Abort()
 }
 
@@ -172,7 +171,7 @@ func (c *Context) Get(key string) (value interface{}, exists bool) {
 	return
 }
 
-// MustGet returns the value for the given key if it exists, otherwise it panics.
+// Returns the value for the given key if it exists, otherwise it panics.
 func (c *Context) MustGet(key string) interface{} {
 	if value, exists := c.Get(key); exists {
 		return value
@@ -244,7 +243,7 @@ func (c *Context) PostForm(key string) string {
 	return value
 }
 
-// DefaultPostForm returns the specified key from a POST urlencoded form or multipart form
+// PostForm returns the specified key from a POST urlencoded form or multipart form
 // when it exists, otherwise it returns the specified defaultValue string.
 // See: PostForm() and GetPostForm() for further information.
 func (c *Context) DefaultPostForm(key, defaultValue string) string {
@@ -280,7 +279,7 @@ func (c *Context) GetPostForm(key string) (string, bool) {
 // 		"application/json" --> JSON binding
 // 		"application/xml"  --> XML binding
 // otherwise --> returns an error
-// It parses the request's body as JSON if Content-Type == "application/json" using JSON or XML as a JSON input.
+// If Parses the request's body as JSON if Content-Type == "application/json" using JSON or XML  as a JSON input.
 // It decodes the json payload into the struct specified as a pointer.
 // Like ParseBody() but this method also writes a 400 error if the json is not valid.
 func (c *Context) Bind(obj interface{}) error {
@@ -416,6 +415,18 @@ func (c *Context) IndentedJSON(code int, obj interface{}) {
 // It also sets the Content-Type as "application/json".
 func (c *Context) JSON(code int, obj interface{}) {
 	c.Status(code)
+
+	_, ok := c.GetQuery("callback")
+
+	if ok {
+		body, err := json.Marshal(obj)
+		if err != nil {
+			panic(err)
+		}
+		c.String(code, string(body))
+		return
+	}
+
 	if err := render.WriteJSON(c.Writer, obj); err != nil {
 		panic(err)
 	}
@@ -427,15 +438,15 @@ func (c *Context) XML(code int, obj interface{}) {
 	c.Render(code, render.XML{Data: obj})
 }
 
-// YAML serializes the given struct as YAML into the response body.
-func (c *Context) YAML(code int, obj interface{}) {
-	c.Render(code, render.YAML{Data: obj})
-}
-
 // String writes the given string into the response body.
 func (c *Context) String(code int, format string, values ...interface{}) {
+	result := format
+	callback, ok := c.GetQuery("callback")
+	if ok {
+		result = callback + "(" + format + ")"
+	}
 	c.Status(code)
-	render.WriteString(c.Writer, format, values)
+	render.WriteString(c.Writer, result, values)
 }
 
 // Redirect returns a HTTP redirect to the specific location.

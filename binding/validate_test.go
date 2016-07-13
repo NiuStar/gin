@@ -16,15 +16,15 @@ type testInterface interface {
 	String() string
 }
 
-type substructNoValidation struct {
-	IString string
-	IInt    int
+type substruct_noValidation struct {
+	I_String string
+	I_Int    int
 }
 
-type mapNoValidationSub map[string]substructNoValidation
+type mapNoValidationSub map[string]substruct_noValidation
 
-type structNoValidationValues struct {
-	substructNoValidation
+type struct_noValidation_values struct {
+	substruct_noValidation
 
 	Boolean bool
 
@@ -46,7 +46,7 @@ type structNoValidationValues struct {
 
 	Date time.Time
 
-	Struct        substructNoValidation
+	Struct        substruct_noValidation
 	InlinedStruct struct {
 		String  []string
 		Integer int
@@ -54,8 +54,8 @@ type structNoValidationValues struct {
 
 	IntSlice           []int
 	IntPointerSlice    []*int
-	StructPointerSlice []*substructNoValidation
-	StructSlice        []substructNoValidation
+	StructPointerSlice []*substruct_noValidation
+	StructSlice        []substruct_noValidation
 	InterfaceSlice     []testInterface
 
 	UniversalInterface interface{}
@@ -65,9 +65,9 @@ type structNoValidationValues struct {
 	StructMap mapNoValidationSub
 }
 
-func createNoValidationValues() structNoValidationValues {
+func createNoValidation_values() struct_noValidation_values {
 	integer := 1
-	s := structNoValidationValues{
+	s := struct_noValidation_values{
 		Boolean:            true,
 		Uinteger:           1 << 29,
 		Integer:            -10000,
@@ -84,33 +84,33 @@ func createNoValidationValues() structNoValidationValues {
 		String:             "text",
 		Date:               time.Time{},
 		CustomInterface:    &bytes.Buffer{},
-		Struct:             substructNoValidation{},
+		Struct:             substruct_noValidation{},
 		IntSlice:           []int{-3, -2, 1, 0, 1, 2, 3},
 		IntPointerSlice:    []*int{&integer},
-		StructSlice:        []substructNoValidation{},
+		StructSlice:        []substruct_noValidation{},
 		UniversalInterface: 1.2,
 		FloatMap: map[string]float32{
 			"foo": 1.23,
 			"bar": 232.323,
 		},
 		StructMap: mapNoValidationSub{
-			"foo": substructNoValidation{},
-			"bar": substructNoValidation{},
+			"foo": substruct_noValidation{},
+			"bar": substruct_noValidation{},
 		},
 		// StructPointerSlice []noValidationSub
 		// InterfaceSlice     []testInterface
 	}
 	s.InlinedStruct.Integer = 1000
 	s.InlinedStruct.String = []string{"first", "second"}
-	s.IString = "substring"
-	s.IInt = 987654
+	s.I_String = "substring"
+	s.I_Int = 987654
 	return s
 }
 
 func TestValidateNoValidationValues(t *testing.T) {
-	origin := createNoValidationValues()
-	test := createNoValidationValues()
-	empty := structNoValidationValues{}
+	origin := createNoValidation_values()
+	test := createNoValidation_values()
+	empty := struct_noValidation_values{}
 
 	assert.Nil(t, validate(test))
 	assert.Nil(t, validate(&test))
@@ -120,8 +120,8 @@ func TestValidateNoValidationValues(t *testing.T) {
 	assert.Equal(t, origin, test)
 }
 
-type structNoValidationPointer struct {
-	substructNoValidation
+type struct_noValidation_pointer struct {
+	substruct_noValidation
 
 	Boolean bool
 
@@ -143,12 +143,12 @@ type structNoValidationPointer struct {
 
 	Date *time.Time
 
-	Struct *substructNoValidation
+	Struct *substruct_noValidation
 
 	IntSlice           *[]int
 	IntPointerSlice    *[]*int
-	StructPointerSlice *[]*substructNoValidation
-	StructSlice        *[]substructNoValidation
+	StructPointerSlice *[]*substruct_noValidation
+	StructSlice        *[]substruct_noValidation
 	InterfaceSlice     *[]testInterface
 
 	FloatMap  *map[string]float32
@@ -158,7 +158,7 @@ type structNoValidationPointer struct {
 func TestValidateNoValidationPointers(t *testing.T) {
 	//origin := createNoValidation_values()
 	//test := createNoValidation_values()
-	empty := structNoValidationPointer{}
+	empty := struct_noValidation_pointer{}
 
 	//assert.Nil(t, validate(test))
 	//assert.Nil(t, validate(&test))

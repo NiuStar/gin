@@ -5,8 +5,8 @@
 package gin
 
 import (
-	"net/http"
-	"net/http/httptest"
+	"nqc.cn/net/http"
+	"nqc.cn/net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"

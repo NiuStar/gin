@@ -3,7 +3,6 @@ package gin
 import (
 	"html/template"
 	"net/http"
-	"os"
 	"testing"
 )
 
@@ -37,7 +36,7 @@ func BenchmarkManyHandlers(B *testing.B) {
 }
 
 func Benchmark5Params(B *testing.B) {
-	DefaultWriter = os.Stdout
+	DefaultWriter = newMockWriter()
 	router := New()
 	router.Use(func(c *Context) {})
 	router.GET("/param/:param1/:params2/:param3/:param4/:param5", func(c *Context) {})

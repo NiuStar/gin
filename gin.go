@@ -5,16 +5,20 @@
 package gin
 
 import (
+	"fmt"
+	"github.com/gin-gonic/gin/render"
+	"go4.org/syncutil/singleflight"
+	"golang.org/x/net/http2"
 	"html/template"
+	"log"
 	"net"
 	"net/http"
 	"os"
 	"sync"
-
-	"github.com/gin-gonic/gin/render"
+	"time"
 )
 
-// Version is Framework's version
+// Framework's version
 const Version = "v1.0rc2"
 
 var default404Body = []byte("404 page not found")
@@ -147,19 +151,19 @@ func (engine *Engine) SetHTMLTemplate(templ *template.Template) {
 	engine.HTMLRender = render.HTMLProduction{Template: templ}
 }
 
-// NoRoute adds handlers for NoRoute. It return a 404 code by default.
+// Adds handlers for NoRoute. It return a 404 code by default.
 func (engine *Engine) NoRoute(handlers ...HandlerFunc) {
 	engine.noRoute = handlers
 	engine.rebuild404Handlers()
 }
 
-// NoMethod sets the handlers called when... TODO
+// Sets the handlers called when... TODO
 func (engine *Engine) NoMethod(handlers ...HandlerFunc) {
 	engine.noMethod = handlers
 	engine.rebuild405Handlers()
 }
 
-// Use attachs a global middleware to the router. ie. the middleware attached though Use() will be
+// Attachs a global middleware to the router. ie. the middleware attached though Use() will be
 // included in the handlers chain for every single request. Even 404, 405, static files...
 // For example, this is the right place for a logger or error management middleware.
 func (engine *Engine) Use(middleware ...HandlerFunc) IRoutes {
@@ -218,23 +222,89 @@ func iterate(path, method string, routes RoutesInfo, root *node) RoutesInfo {
 // Run attaches the router to a http.Server and starts listening and serving HTTP requests.
 // It is a shortcut for http.ListenAndServe(addr, router)
 // Note: this method will block the calling goroutine indefinitely unless an error happens.
-func (engine *Engine) Run(addr ...string) (err error) {
+
+func (engine *Engine) GetTCPListener(isGraceful bool,addr... string) (lis net.Listener,err1 error) {
+	address := resolveAddress(addr)
+	/*fmt.Println("address2: ",address)
+	ln, err := net.Listen("tcp", address)
+	if err != nil {
+		return nil, err
+	}
+
+	return ln.(*net.TCPListener),nil*/
+
+	var ln net.Listener
+	var err error
+
+	if isGraceful {
+		//fmt.Println("addr")
+		file := os.NewFile(3, "")
+		ln, err = net.FileListener(file)
+		if err != nil {
+			err = fmt.Errorf("net.FileListener error: %v", err)
+			return nil, err
+		}
+	} else {
+		fmt.Println(address)
+		ln, err = net.Listen("tcp", address)
+		if err != nil {
+			err = fmt.Errorf("net.Listen error: %v", err)
+			return nil, err
+		}
+	}
+	return ln.(*net.TCPListener), nil
+	//return srv.Serve(tcpKeepAliveListener{ln.(*net.TCPListener)})
+
+	//err = http.ListenAndServe(address, engine)
+	//return
+}
+
+func (engine *Engine) Run(ln net.Listener,addr... string) (err error) {
 	defer func() { debugPrintError(err) }()
 
 	address := resolveAddress(addr)
 	debugPrint("Listening and serving HTTP on %s\n", address)
-	err = http.ListenAndServe(address, engine)
-	return
+
+	fmt.Println("address: ",address)
+	ser := &http.Server{
+		Addr:    address,
+		Handler: engine,
+		ReadTimeout:  60 * time.Second,
+		WriteTimeout: 60 * time.Second,
+	}
+	return ser.Serve(ln)
+	//return srv.Serve(tcpKeepAliveListener{ln.(*net.TCPListener)})
+
+	//err = http.ListenAndServe(address, engine)
+	//return err
+}
+
+func (engine *Engine) GetTLSConfig(addr string) (s http.Server ,err error){
+	debugPrint("Listening and serving HTTPS on %s\n", addr)
+	defer func() { debugPrintError(err) }()
+
+	var srv http.Server
+	srv.Addr = addr
+	srv.ConnState = idleTimeoutHook()
+
+	engine.registerHandlers()
+	//err = http.ListenAndServeTLS(addr, certFile, keyFile, engine)
+	http2.ConfigureServer(&srv, &http2.Server{})
+	return srv,err
 }
 
 // RunTLS attaches the router to a http.Server and starts listening and serving HTTPS (secure) requests.
 // It is a shortcut for http.ListenAndServeTLS(addr, certFile, keyFile, router)
 // Note: this method will block the calling goroutine indefinitely unless an error happens.
-func (engine *Engine) RunTLS(addr string, certFile string, keyFile string) (err error) {
-	debugPrint("Listening and serving HTTPS on %s\n", addr)
-	defer func() { debugPrintError(err) }()
+func (engine *Engine) RunTLS(srv http.Server,ln net.Listener) (err error) {
 
-	err = http.ListenAndServeTLS(addr, certFile, keyFile, engine)
+
+	go func() {
+		fmt.Println("开启http2.0")
+		//log.Fatal(srv.ListenAndServeTLS(certFile, keyFile))
+		log.Fatal(srv.Serve(ln))
+	}()
+	select {}
 	return
 }
 
@@ -255,8 +325,89 @@ func (engine *Engine) RunUnix(file string) (err error) {
 	return
 }
 
+/***********************************************************/
+//HTTP/2.0
+/***********************************************************/
+
+const idleTimeout = 5 * time.Minute
+const activeTimeout = 10 * time.Minute
+
+type tcpKeepAliveListener struct {
+	*net.TCPListener
+}
+
+func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
+	tc, err := ln.AcceptTCP()
+	if err != nil {
+		return
+	}
+	tc.SetKeepAlive(true)
+	tc.SetKeepAlivePeriod(3 * time.Minute)
+	return tc, nil
+}
+
+var (
+	fsGrp   singleflight.Group
+	fsMu    sync.Mutex // guards fsCache
+	fsCache = map[string]http.Handler{}
+)
+
+// TODO: put this into the standard library and actually send
+// PING frames and GOAWAY, etc: golang.org/issue/14204
+func idleTimeoutHook() func(net.Conn, http.ConnState) {
+	var mu sync.Mutex
+	m := map[net.Conn]*time.Timer{}
+	return func(c net.Conn, cs http.ConnState) {
+		mu.Lock()
+		defer mu.Unlock()
+		if t, ok := m[c]; ok {
+			delete(m, c)
+			t.Stop()
+		}
+		var d time.Duration
+		switch cs {
+		case http.StateNew, http.StateIdle:
+			d = idleTimeout
+		case http.StateActive:
+			d = activeTimeout
+		default:
+			return
+		}
+		m[c] = time.AfterFunc(d, func() {
+			log.Printf("closing idle conn %v after %v", c.RemoteAddr(), d)
+			go c.Close()
+		})
+	}
+}
+func (engine *Engine) homeOldHTTP(w http.ResponseWriter, req *http.Request) {
+	fmt.Println("homeOldHTTP")
+	c := engine.pool.Get().(*Context)
+	c.writermem.reset(w)
+	c.Request = req
+	c.reset()
+
+	engine.handleHTTPRequest(c)
+	//c.String(200, "homeOldHTTP")
+	engine.pool.Put(c)
+
+	//io.WriteString(w, url)
+}
+func (engine *Engine) registerHandlers() {
+	mux2 := http.NewServeMux()
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.ProtoMajor == 1 {
+			engine.homeOldHTTP(w, r)
+			return
+		}
+		mux2.ServeHTTP(w, r)
+	})
+	mux2.HandleFunc("/", engine.ServeHTTP)
+}
+
 // Conforms to the http.Handler interface.
 func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+
+	fmt.Println("ServeHTTP")
 	c := engine.pool.Get().(*Context)
 	c.writermem.reset(w)
 	c.Request = req
