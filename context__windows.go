@@ -18,6 +18,9 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"fmt"
+	//"io/Seeker"
+	xlog "github.com/NiuStar/log"
 )
 
 // Content-Type MIME of the most common data formats
@@ -90,9 +93,33 @@ func (c *Context) HandlerName() string {
 // Next should be used only inside middleware.
 // It executes the pending handlers in the chain inside the calling handler.
 // See example in github.
+
+func (c *Context)getPostData() interface{} {
+	req := c.Request
+	req.ParseMultipartForm(32 << 20) // 32 MB
+	if req.PostForm != nil && len(req.PostForm) > 0 {
+		return req.PostForm
+	}
+	if req.MultipartForm != nil && req.MultipartForm.File != nil {
+		if req.MultipartForm.Value != nil && len(req.MultipartForm.Value) > 0 {
+			return req.MultipartForm.Value
+		}
+	}
+	return nil
+
+}
+
 func (c *Context) Next() {
 	c.index++
 	s := int8(len(c.handlers))
+
+	js := make(map[string]interface{})
+
+	js["post"] = c.getPostData()
+	js["url"] = c.Request.RequestURI
+	body , _ := json.Marshal(js)
+	fmt.Println("c ::",string(body))
+	defer xlog.InitListner(string(body))
 	for ; c.index < s; c.index++ {
 		c.handlers[c.index](c)
 	}
@@ -357,13 +384,13 @@ func (c *Context) Header(key, value string) {
 }
 
 func (c *Context) SetCookie(
-	name string,
-	value string,
-	maxAge int,
-	path string,
-	domain string,
-	secure bool,
-	httpOnly bool,
+name string,
+value string,
+maxAge int,
+path string,
+domain string,
+secure bool,
+httpOnly bool,
 ) {
 	if path == "" {
 		path = "/"

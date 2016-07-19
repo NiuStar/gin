@@ -269,8 +269,8 @@ func (engine *Engine) Run(ln net.Listener,addr... string) (err error) {
 	ser := &http.Server{
 		Addr:    address,
 		Handler: engine,
-		ReadTimeout:  60 * time.Second,
-		WriteTimeout: 60 * time.Second,
+		//ReadTimeout:  60 * time.Second,
+		//WriteTimeout: 60 * time.Second,
 	}
 	return ser.Serve(ln)
 	//return srv.Serve(tcpKeepAliveListener{ln.(*net.TCPListener)})

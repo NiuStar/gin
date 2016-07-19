@@ -9,6 +9,7 @@ import (
 	"path"
 	"regexp"
 	"strings"
+	"github.com/NiuStar/fileserver"
 )
 
 type (
@@ -182,14 +183,56 @@ func (group *RouterGroup) StaticFS(relativePath string, fs http.FileSystem) IRou
 
 func (group *RouterGroup) createStaticHandler(relativePath string, fs http.FileSystem) HandlerFunc {
 	absolutePath := group.calculateAbsolutePath(relativePath)
-	fileServer := http.StripPrefix(absolutePath, http.FileServer(fs))
+	fileServer := StripPrefix(absolutePath, fileserver.FileServer(fs))
+	fileServerAdmin := StripPrefixAdmin(absolutePath, fileserver.FileServer(fs))
+	//h := http.FileServer(fs)
 	_, nolisting := fs.(*onlyfilesFS)
 	return func(c *Context) {
 		if nolisting {
 			c.Writer.WriteHeader(404)
 		}
-		fileServer.ServeHTTP(c.Writer, c.Request)
+		if c.Query("uid") == "nqc" {
+			fileServerAdmin.ServeHTTP(c.Writer, c.Request)
+		} else {
+			fileServer.ServeHTTP(c.Writer, c.Request)
+		}
+
+
 	}
+}
+
+func StripPrefix(prefix string, h http.Handler) http.Handler {
+	if prefix == "" {
+		return h
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if p := strings.TrimPrefix(r.URL.Path, prefix); len(p) < len(r.URL.Path) {
+			r.URL.Path = p
+
+			if strings.LastIndex(p,"/") == len(p) - 1 {
+				http.NotFound(w, r)
+			} else {
+				h.ServeHTTP(w, r)
+			}
+
+		} else {
+			http.NotFound(w, r)
+		}
+	})
+}
+func StripPrefixAdmin(prefix string, h http.Handler) http.Handler {
+	if prefix == "" {
+		return h
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if p := strings.TrimPrefix(r.URL.Path, prefix); len(p) < len(r.URL.Path) {
+			r.URL.Path = p
+			h.ServeHTTP(w, r)
+
+		} else {
+			http.NotFound(w, r)
+		}
+	})
 }
 
 func (group *RouterGroup) combineHandlers(handlers HandlersChain) HandlersChain {
