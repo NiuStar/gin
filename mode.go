@@ -14,14 +14,14 @@ import (
 const ENV_GIN_MODE = "GIN_MODE"
 
 const (
-	DebugMode   string = "debug"
-	ReleaseMode string = "release"
-	TestMode    string = "test"
+	DebugMode   = "debug"
+	ReleaseMode = "release"
+	TestMode    = "test"
 )
 const (
-	debugCode   = iota
-	releaseCode = iota
-	testCode    = iota
+	debugCode = iota
+	releaseCode
+	testCode
 )
 
 // DefaultWriter is the default io.Writer used the Gin for debug output and
@@ -34,21 +34,17 @@ const (
 var DefaultWriter io.Writer = os.Stdout
 var DefaultErrorWriter io.Writer = os.Stderr
 
-var ginMode int = debugCode
-var modeName string = DebugMode
+var ginMode = debugCode
+var modeName = DebugMode
 
 func init() {
 	mode := os.Getenv(ENV_GIN_MODE)
-	if len(mode) == 0 {
-		SetMode(DebugMode)
-	} else {
-		SetMode(mode)
-	}
+	SetMode(mode)
 }
 
 func SetMode(value string) {
 	switch value {
-	case DebugMode:
+	case DebugMode, "":
 		ginMode = debugCode
 	case ReleaseMode:
 		ginMode = releaseCode
@@ -62,6 +58,10 @@ func SetMode(value string) {
 
 func DisableBindValidation() {
 	binding.Validator = nil
+}
+
+func EnableJsonDecoderUseNumber() {
+	binding.EnableDecoderUseNumber = true
 }
 
 func Mode() string {

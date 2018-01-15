@@ -7,46 +7,62 @@ package gin
 import (
 	"fmt"
 	"io"
+	"os"
 	"time"
+
+	"github.com/mattn/go-isatty"
 )
 
 var (
-	green   = string([]byte{27, 91, 57, 55, 59, 52, 50, 109})
-	white   = string([]byte{27, 91, 57, 48, 59, 52, 55, 109})
-	yellow  = string([]byte{27, 91, 57, 55, 59, 52, 51, 109})
-	red     = string([]byte{27, 91, 57, 55, 59, 52, 49, 109})
-	blue    = string([]byte{27, 91, 57, 55, 59, 52, 52, 109})
-	magenta = string([]byte{27, 91, 57, 55, 59, 52, 53, 109})
-	cyan    = string([]byte{27, 91, 57, 55, 59, 52, 54, 109})
-	reset   = string([]byte{27, 91, 48, 109})
+	green        = string([]byte{27, 91, 57, 55, 59, 52, 50, 109})
+	white        = string([]byte{27, 91, 57, 48, 59, 52, 55, 109})
+	yellow       = string([]byte{27, 91, 57, 55, 59, 52, 51, 109})
+	red          = string([]byte{27, 91, 57, 55, 59, 52, 49, 109})
+	blue         = string([]byte{27, 91, 57, 55, 59, 52, 52, 109})
+	magenta      = string([]byte{27, 91, 57, 55, 59, 52, 53, 109})
+	cyan         = string([]byte{27, 91, 57, 55, 59, 52, 54, 109})
+	reset        = string([]byte{27, 91, 48, 109})
+	disableColor = false
 )
 
+// DisableConsoleColor disables color output in the console.
+func DisableConsoleColor() {
+	disableColor = true
+}
+
+// ErrorLogger returns a handlerfunc for any error type.
 func ErrorLogger() HandlerFunc {
 	return ErrorLoggerT(ErrorTypeAny)
 }
 
+// ErrorLoggerT returns a handlerfunc for a given error type.
 func ErrorLoggerT(typ ErrorType) HandlerFunc {
 	return func(c *Context) {
 		c.Next()
-		// avoid writting if we already wrote into the response body
-		if !c.Writer.Written() {
-			errors := c.Errors.ByType(typ)
-			if len(errors) > 0 {
-				c.JSON(-1, errors)
-			}
+		errors := c.Errors.ByType(typ)
+		if len(errors) > 0 {
+			c.JSON(-1, errors)
 		}
 	}
 }
 
-// Instances a Logger middleware that will write the logs to gin.DefaultWriter
-// By default gin.DefaultWriter = os.Stdout
+// Logger instances a Logger middleware that will write the logs to gin.DefaultWriter.
+// By default gin.DefaultWriter = os.Stdout.
 func Logger() HandlerFunc {
 	return LoggerWithWriter(DefaultWriter)
 }
 
-// Instance a Logger middleware with the specified writter buffer.
+// LoggerWithWriter instance a Logger middleware with the specified writter buffer.
 // Example: os.Stdout, a file opened in write mode, a socket...
 func LoggerWithWriter(out io.Writer, notlogged ...string) HandlerFunc {
+	isTerm := true
+
+	if w, ok := out.(*os.File); !ok ||
+		(os.Getenv("TERM") == "dumb" || (!isatty.IsTerminal(w.Fd()) && !isatty.IsCygwinTerminal(w.Fd()))) ||
+		disableColor {
+		isTerm = false
+	}
+
 	var skip map[string]struct{}
 
 	if length := len(notlogged); length > 0 {
@@ -61,6 +77,7 @@ func LoggerWithWriter(out io.Writer, notlogged ...string) HandlerFunc {
 		// Start timer
 		start := time.Now()
 		path := c.Request.URL.Path
+		raw := c.Request.URL.RawQuery
 
 		// Process request
 		c.Next()
@@ -74,16 +91,24 @@ func LoggerWithWriter(out io.Writer, notlogged ...string) HandlerFunc {
 			clientIP := c.ClientIP()
 			method := c.Request.Method
 			statusCode := c.Writer.Status()
-			statusColor := colorForStatus(statusCode)
-			methodColor := colorForMethod(method)
+			var statusColor, methodColor, resetColor string
+			if isTerm {
+				statusColor = colorForStatus(statusCode)
+				methodColor = colorForMethod(method)
+				resetColor = reset
+			}
 			comment := c.Errors.ByType(ErrorTypePrivate).String()
 
-			fmt.Fprintf(out, "[GIN] %v |%s %3d %s| %13v | %s |%s  %s %-7s %s\n%s",
+			if raw != "" {
+				path = path + "?" + raw
+			}
+
+			fmt.Fprintf(out, "[GIN] %v |%s %3d %s| %13v | %15s |%s %-7s %s %s\n%s",
 				end.Format("2006/01/02 - 15:04:05"),
-				statusColor, statusCode, reset,
+				statusColor, statusCode, resetColor,
 				latency,
 				clientIP,
-				methodColor, reset, method,
+				methodColor, method, resetColor,
 				path,
 				comment,
 			)

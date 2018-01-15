@@ -20,7 +20,9 @@ import (
 	"time"
 	"fmt"
 	//"io/Seeker"
-	xlog "github.com/NiuStar/log"
+	"bytes"
+	"io/ioutil"
+	xlog "nqc.cn/log"
 )
 
 // Content-Type MIME of the most common data formats
@@ -95,24 +97,46 @@ func (c *Context) HandlerName() string {
 // See example in github.
 
 func (c *Context)getPostData() interface{} {
-	req := c.Request
-	req.ParseMultipartForm(32 << 20) // 32 MB
-	if req.PostForm != nil && len(req.PostForm) > 0 {
-		return req.PostForm
-	}
-	if req.MultipartForm != nil && req.MultipartForm.File != nil {
-		if req.MultipartForm.Value != nil && len(req.MultipartForm.Value) > 0 {
-			return req.MultipartForm.Value
-		}
-	}
-	return nil
+	requestbody, _ := ioutil.ReadAll(c.Request.Body)
+	c.Request.Body.Close()
+	bf := bytes.NewBuffer(requestbody)
+	c.Request.Body = ioutil.NopCloser(bf)
+	//text ,_:= utils.Base64Decode(string(requestbody))
+	return string(requestbody)
 
 }
 
 func (c *Context) Next() {
 	c.index++
-	s := int8(len(c.handlers))
 
+	
+	url := c.Request.RequestURI
+
+	method := c.Request.Method
+
+	hostData := c.Request.Host
+	hostarray := strings.Split(hostData,":")
+	portdata := hostarray[len(hostarray) - 1]
+	if strings.EqualFold(portdata,"10001"){
+
+		var uid_get string
+		if strings.EqualFold(method,"GET"){
+			uid_get = c.Query("uid")
+		}else if strings.EqualFold(method,"POST"){
+			uid_get = c.PostForm("uid")
+		}
+		urlmap := strings.Split(url,"?")
+		if strings.EqualFold(urlmap[0],"/login") == false{
+			data1 := sessionManager.CheckCookieValid(c.Request.Cookies(),uid_get)
+			if data1 == false{
+				c.String(http.StatusOK,`{"state":false,"msg":"ÇëÏÈµÇÂ¼£¡"}`)
+				return
+			}
+		}
+	}
+
+
+	s := int8(len(c.handlers))
 	js := make(map[string]interface{})
 
 	js["post"] = c.getPostData()

@@ -6,25 +6,27 @@ package binding
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/go-playground/validator.v8"
 )
 
 type testInterface interface {
 	String() string
 }
 
-type substruct_noValidation struct {
-	I_String string
-	I_Int    int
+type substructNoValidation struct {
+	IString string
+	IInt    int
 }
 
-type mapNoValidationSub map[string]substruct_noValidation
+type mapNoValidationSub map[string]substructNoValidation
 
-type struct_noValidation_values struct {
-	substruct_noValidation
+type structNoValidationValues struct {
+	substructNoValidation
 
 	Boolean bool
 
@@ -46,7 +48,7 @@ type struct_noValidation_values struct {
 
 	Date time.Time
 
-	Struct        substruct_noValidation
+	Struct        substructNoValidation
 	InlinedStruct struct {
 		String  []string
 		Integer int
@@ -54,8 +56,8 @@ type struct_noValidation_values struct {
 
 	IntSlice           []int
 	IntPointerSlice    []*int
-	StructPointerSlice []*substruct_noValidation
-	StructSlice        []substruct_noValidation
+	StructPointerSlice []*substructNoValidation
+	StructSlice        []substructNoValidation
 	InterfaceSlice     []testInterface
 
 	UniversalInterface interface{}
@@ -65,9 +67,9 @@ type struct_noValidation_values struct {
 	StructMap mapNoValidationSub
 }
 
-func createNoValidation_values() struct_noValidation_values {
+func createNoValidationValues() structNoValidationValues {
 	integer := 1
-	s := struct_noValidation_values{
+	s := structNoValidationValues{
 		Boolean:            true,
 		Uinteger:           1 << 29,
 		Integer:            -10000,
@@ -84,33 +86,33 @@ func createNoValidation_values() struct_noValidation_values {
 		String:             "text",
 		Date:               time.Time{},
 		CustomInterface:    &bytes.Buffer{},
-		Struct:             substruct_noValidation{},
+		Struct:             substructNoValidation{},
 		IntSlice:           []int{-3, -2, 1, 0, 1, 2, 3},
 		IntPointerSlice:    []*int{&integer},
-		StructSlice:        []substruct_noValidation{},
+		StructSlice:        []substructNoValidation{},
 		UniversalInterface: 1.2,
 		FloatMap: map[string]float32{
 			"foo": 1.23,
 			"bar": 232.323,
 		},
 		StructMap: mapNoValidationSub{
-			"foo": substruct_noValidation{},
-			"bar": substruct_noValidation{},
+			"foo": substructNoValidation{},
+			"bar": substructNoValidation{},
 		},
 		// StructPointerSlice []noValidationSub
 		// InterfaceSlice     []testInterface
 	}
 	s.InlinedStruct.Integer = 1000
 	s.InlinedStruct.String = []string{"first", "second"}
-	s.I_String = "substring"
-	s.I_Int = 987654
+	s.IString = "substring"
+	s.IInt = 987654
 	return s
 }
 
 func TestValidateNoValidationValues(t *testing.T) {
-	origin := createNoValidation_values()
-	test := createNoValidation_values()
-	empty := struct_noValidation_values{}
+	origin := createNoValidationValues()
+	test := createNoValidationValues()
+	empty := structNoValidationValues{}
 
 	assert.Nil(t, validate(test))
 	assert.Nil(t, validate(&test))
@@ -120,8 +122,8 @@ func TestValidateNoValidationValues(t *testing.T) {
 	assert.Equal(t, origin, test)
 }
 
-type struct_noValidation_pointer struct {
-	substruct_noValidation
+type structNoValidationPointer struct {
+	substructNoValidation
 
 	Boolean bool
 
@@ -143,12 +145,12 @@ type struct_noValidation_pointer struct {
 
 	Date *time.Time
 
-	Struct *substruct_noValidation
+	Struct *substructNoValidation
 
 	IntSlice           *[]int
 	IntPointerSlice    *[]*int
-	StructPointerSlice *[]*substruct_noValidation
-	StructSlice        *[]substruct_noValidation
+	StructPointerSlice *[]*substructNoValidation
+	StructSlice        *[]substructNoValidation
 	InterfaceSlice     *[]testInterface
 
 	FloatMap  *map[string]float32
@@ -158,7 +160,7 @@ type struct_noValidation_pointer struct {
 func TestValidateNoValidationPointers(t *testing.T) {
 	//origin := createNoValidation_values()
 	//test := createNoValidation_values()
-	empty := struct_noValidation_pointer{}
+	empty := structNoValidationPointer{}
 
 	//assert.Nil(t, validate(test))
 	//assert.Nil(t, validate(&test))
@@ -189,4 +191,43 @@ func TestValidatePrimitives(t *testing.T) {
 	assert.NoError(t, validate(str))
 	assert.NoError(t, validate(&str))
 	assert.Equal(t, str, "value")
+}
+
+// structCustomValidation is a helper struct we use to check that
+// custom validation can be registered on it.
+// The `notone` binding directive is for custom validation and registered later.
+type structCustomValidation struct {
+	Integer int `binding:"notone"`
+}
+
+// notOne is a custom validator meant to be used with `validator.v8` library.
+// The method signature for `v9` is significantly different and this function
+// would need to be changed for tests to pass after upgrade.
+// See https://github.com/gin-gonic/gin/pull/1015.
+func notOne(
+	v *validator.Validate, topStruct reflect.Value, currentStructOrField reflect.Value,
+	field reflect.Value, fieldType reflect.Type, fieldKind reflect.Kind, param string,
+) bool {
+	if val, ok := field.Interface().(int); ok {
+		return val != 1
+	}
+	return false
+}
+
+func TestRegisterValidation(t *testing.T) {
+	// This validates that the function `notOne` matches
+	// the expected function signature by `defaultValidator`
+	// and by extension the validator library.
+	err := Validator.RegisterValidation("notone", notOne)
+	// Check that we can register custom validation without error
+	assert.Nil(t, err)
+
+	// Create an instance which will fail validation
+	withOne := structCustomValidation{Integer: 1}
+	errs := validate(withOne)
+
+	// Check that we got back non-nil errs
+	assert.NotNil(t, errs)
+	// Check that the error matches expactation
+	assert.Error(t, errs, "", "", "notone")
 }

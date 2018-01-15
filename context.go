@@ -20,7 +20,11 @@ import (
 	"time"
 	"fmt"
 	//"io/Seeker"
-	xlog "github.com/NiuStar/log"
+	"bytes"
+	"io/ioutil"
+	"runtime/debug"
+	xlog "nqc.cn/log"
+	//"github.com/gin-gonic/gin/mahonia-master"
 )
 
 // Content-Type MIME of the most common data formats
@@ -93,38 +97,105 @@ func (c *Context) HandlerName() string {
 // Next should be used only inside middleware.
 // It executes the pending handlers in the chain inside the calling handler.
 // See example in github.
-
+//var requestBody []byte
 func (c *Context)getPostData() interface{} {
-	req := c.Request
-	req.ParseMultipartForm(32 << 20) // 32 MB
-	if req.PostForm != nil && len(req.PostForm) > 0 {
-		return req.PostForm
-	}
-	if req.MultipartForm != nil && req.MultipartForm.File != nil {
-		if req.MultipartForm.Value != nil && len(req.MultipartForm.Value) > 0 {
-			return req.MultipartForm.Value
-		}
-	}
-	return nil
+	requestBody, _ := ioutil.ReadAll(c.Request.Body)
+	c.Request.Body.Close()
+	bf := bytes.NewBuffer(requestBody)
+	c.Request.Body = ioutil.NopCloser(bf)
+	//text ,_:= utils.Base64Decode(string(requestbody))
+	return string(requestBody)
 
 }
 
-func (c *Context) Next() {
-	c.index++
-	s := int8(len(c.handlers))
-
+func (c *Context) DisplayReq() {
 	js := make(map[string]interface{})
 
 	js["post"] = c.getPostData()
 	js["url"] = c.Request.RequestURI
-	body , _ := json.Marshal(js)
-	fmt.Println("c ::",string(body))
-	defer xlog.InitListner(string(body))
-	for ; c.index < s; c.index++ {
-		c.handlers[c.index](c)
-	}
+	//body , _ := json.Marshal(js)
+	//fmt.Println("c ::",string(body))
 }
 
+//func (c *Context) LHYGetPostData() map[string]interface{}{
+//	//requestbody, _ := ioutil.ReadAll(c.Request.Body)
+//	//c.Request.Body.Close()
+//	//bf := bytes.NewBuffer(requestbody)
+//	//c.Request.Body = ioutil.NopCloser(bf)
+//	data := make(map[string]interface{})
+//	fmt.Println("request:",requestBody,"    string:",string(requestBody))
+//	err := json.Unmarshal(requestBody,&data)
+//	if err != nil{
+//		fmt.Println("LHYERR:",err)
+//		return nil
+//	}
+//	fmt.Println("   data1:",data)
+//	return data
+//}
+
+func (c *Context) Next() {
+	c.index++
+
+	
+	//url := c.Request.RequestURI
+
+	//method := c.Request.Method
+
+	hostData := c.Request.Host
+	hostarray := strings.Split(hostData,":")
+	portdata := hostarray[len(hostarray) - 1]
+	//fmt.Println("c.request:",c.Request)
+	/*if strings.EqualFold(portdata,"10001"){
+
+		var uid_get string
+		if strings.EqualFold(method,"GET"){
+			uid_get = c.Query("uid")
+		}else if strings.EqualFold(method,"POST"){
+			uid_get = c.PostForm("uid")
+		}
+		urlmap := strings.Split(url,"?")
+		if strings.EqualFold(urlmap[0],"/login") == false{
+			data1 := sessionManager.CheckCookieValid(c.Request.Cookies(),uid_get)
+			if data1 == false{
+				c.String(http.StatusOK,`{"state":false,"msg":"please login","ext":{}}`)
+				return
+			}
+		}
+	}*/
+
+
+	s := int8(len(c.handlers))
+
+	defer xlog.InitListner("")
+
+	//for ; c.index < s; c.index++ {
+	//	c.handlers[c.index](c)
+	//}
+	Try(func(){
+		for ; c.index < s; c.index++ {
+			c.handlers[c.index](c)
+		}
+	},func(err interface{}) {
+
+		
+		if strings.EqualFold(portdata,"30000"){
+			c.String(200,`{"State":false,"Message":"` + err.(error).Error() + `","Ext":{}}`)
+		}else{
+			c.String(200,`{"state":false,"msg":"` + err.(error).Error() + `","ext":{}}`)
+		}
+	},string(""))
+}
+func Try(a func(),b func(err interface{}),str string) {
+	defer deal(b,str)
+	a()
+}
+
+func  deal(b func(e interface{}),str string) {
+	if err := recover(); err != nil {
+		xlog.WriteString(fmt.Sprintln(fmt.Sprintln() + fmt.Sprintln(str) + fmt.Sprintf(`error: %v %v`,fmt.Sprintln(err),string(debug.Stack()))))
+		b(err)
+	}
+}
 // IsAborted returns true if the currect context was aborted.
 func (c *Context) IsAborted() bool {
 	return c.index >= abortIndex
@@ -266,6 +337,7 @@ func (c *Context) GetQuery(key string) (string, bool) {
 // PostForm returns the specified key from a POST urlencoded form or multipart form
 // when it exists, otherwise it returns an empty string `("")`.
 func (c *Context) PostForm(key string) string {
+	fmt.Println("come form ")
 	value, _ := c.GetPostForm(key)
 	return value
 }
@@ -288,9 +360,17 @@ func (c *Context) DefaultPostForm(key, defaultValue string) string {
 // 		email=  			  	-->  ("", true) := GetPostForm("email") // set email to ""
 //							 	-->  ("", false) := GetPostForm("email") // do nothing with email
 func (c *Context) GetPostForm(key string) (string, bool) {
+	fmt.Println("postForm")
 	req := c.Request
 	req.ParseMultipartForm(32 << 20) // 32 MB
-	if values := req.PostForm[key]; len(values) > 0 {
+	values := req.PostForm[key]
+	//b,_ := req.GetBody()
+	//fmt.Println("req.GetBody():",b)
+	//fmt.Println("key:",key,"    value:",values)
+	//if !strings.EqualFold(key,"picture"){
+	//	fmt.Println("key:",key,"value:",values,"request:",req)
+	//}
+	if  len(values) > 0 {
 		return values[0], true
 	}
 	if req.MultipartForm != nil && req.MultipartForm.File != nil {
@@ -384,13 +464,13 @@ func (c *Context) Header(key, value string) {
 }
 
 func (c *Context) SetCookie(
-	name string,
-	value string,
-	maxAge int,
-	path string,
-	domain string,
-	secure bool,
-	httpOnly bool,
+name string,
+value string,
+maxAge int,
+path string,
+domain string,
+secure bool,
+httpOnly bool,
 ) {
 	if path == "" {
 		path = "/"
@@ -443,22 +523,32 @@ func (c *Context) IndentedJSON(code int, obj interface{}) {
 func (c *Context) JSON(code int, obj interface{}) {
 	c.Status(code)
 
-	_, ok := c.GetQuery("callback")
+	if !c.engine.HandleMethodAllowed {
+		_, ok := c.GetQuery("callback")
 
-	if ok {
-		body, err := json.Marshal(obj)
-		if err != nil {
-			panic(err)
+		if ok {
+			body, err := json.Marshal(obj)
+			if err != nil {
+				panic(err)
+			}
+			c.String(code, string(body))
+			return
 		}
-		c.String(code, string(body))
-		return
 	}
-
 	if err := render.WriteJSON(c.Writer, obj); err != nil {
 		panic(err)
 	}
 }
-
+func (c *Context) JSON2(code int, obj interface{}) {
+	c.Status(code)
+	body, err := json.Marshal(obj)
+	if err != nil {
+		//panic(err)
+		fmt.Println("toJsonErr:",err)
+	}
+	c.String(code, strings.Replace(string(body),"null","[]",-1))
+	return
+}
 // XML serializes the given struct as XML into the response body.
 // It also sets the Content-Type as "application/xml".
 func (c *Context) XML(code int, obj interface{}) {
@@ -468,10 +558,15 @@ func (c *Context) XML(code int, obj interface{}) {
 // String writes the given string into the response body.
 func (c *Context) String(code int, format string, values ...interface{}) {
 	result := format
-	callback, ok := c.GetQuery("callback")
-	if ok {
-		result = callback + "(" + format + ")"
+
+	if !c.engine.HandleMethodAllowed {
+		callback, ok := c.GetQuery("callback")
+		if ok {
+			result = callback + "(" + format + ")"
+		}
 	}
+
+	
 	c.Status(code)
 	render.WriteString(c.Writer, result, values)
 }
@@ -495,6 +590,7 @@ func (c *Context) Data(code int, contentType string, data []byte) {
 
 // File writes the specified file into the body stream in a efficient way.
 func (c *Context) File(filepath string) {
+
 	http.ServeFile(c.Writer, c.Request, filepath)
 }
 
