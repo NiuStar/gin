@@ -6,7 +6,8 @@ package gin
 
 import (
 	"fmt"
-	nfmt "nqc.cn/fmt"
+	nfmt "github.com/NiuStar/log/fmt"
+	"github.com/NiuStar/session"
 	"github.com/gin-gonic/gin/render"
 	"go4.org/syncutil/singleflight"
 	"golang.org/x/net/http2"
@@ -15,10 +16,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
-	"nqc.cn/session"
-	"strings"
 )
 
 const (
@@ -26,6 +26,7 @@ const (
 	Version                = "v1.2"
 	defaultMultipartMemory = 32 << 20 // 32 MB
 )
+
 var sessionManager *session.SessionMgr
 var (
 	default404Body   = []byte("404 page not found")
@@ -57,7 +58,6 @@ type RoutesInfo []RouteInfo
 type Engine struct {
 	RouterGroup
 
-
 	// Enables automatic redirection if the current route can't be matched but a
 	// handler for the path with (without) the trailing slash exists.
 	// For example if /foo/ is requested but a route only exists for /foo, the
@@ -83,7 +83,7 @@ type Engine struct {
 	// If no other Method is allowed, the request is delegated to the NotFound
 	// handler.
 	HandleMethodNotAllowed bool
-	HandleMethodAllowed bool
+	HandleMethodAllowed    bool
 	ForwardedByClientIP    bool
 
 	// #726 #755 If enabled, it will thrust some headers starting with
@@ -107,7 +107,7 @@ type Engine struct {
 	HTMLRender       render.HTMLRender
 	FuncMap          template.FuncMap
 	allNoRoute       HandlersChain
-	allRoute  	 HandlersChain
+	allRoute         HandlersChain
 	allNoMethod      HandlersChain
 	noRoute          HandlersChain
 	noMethod         HandlersChain
@@ -141,7 +141,7 @@ func New() *Engine {
 		AppEngine:              defaultAppEngine,
 		UseRawPath:             false,
 		UnescapePathValues:     true,
-		HandleMethodAllowed:	false,
+		HandleMethodAllowed:    false,
 		MaxMultipartMemory:     defaultMultipartMemory,
 		trees:                  make(methodTrees, 0, 9),
 		delims:                 render.Delims{Left: "{{", Right: "}}"},
@@ -229,7 +229,6 @@ func (engine *Engine) AllRoute(allroute ...HandlerFunc) {
 	engine.HandleMethodAllowed = true
 }
 
-
 // Use attachs a global middleware to the router. ie. the middleware attached though Use() will be
 // included in the handlers chain for every single request. Even 404, 405, static files...
 // For example, this is the right place for a logger or error management middleware.
@@ -290,7 +289,7 @@ func iterate(path, method string, routes RoutesInfo, root *node) RoutesInfo {
 // It is a shortcut for http.ListenAndServe(addr, router)
 // Note: this method will block the calling goroutine indefinitely unless an error happens.
 
-func (engine *Engine) GetTCPListener(isGraceful bool,addr... string) (lis net.Listener,err1 error) {
+func (engine *Engine) GetTCPListener(isGraceful bool, addr ...string) (lis net.Listener, err1 error) {
 	address := resolveAddress(addr)
 	/*fmt.Println("address2: ",address)
 	ln, err := net.Listen("tcp", address)
@@ -306,7 +305,7 @@ func (engine *Engine) GetTCPListener(isGraceful bool,addr... string) (lis net.Li
 	if isGraceful {
 		//fmt.Println("addr")
 		file := os.NewFile(3, "")
-		fmt.Println("file=",file)
+		fmt.Println("file=", file)
 		ln, err = net.FileListener(file)
 		if err != nil {
 			err = fmt.Errorf("net.FileListener error: %v", err)
@@ -327,18 +326,18 @@ func (engine *Engine) GetTCPListener(isGraceful bool,addr... string) (lis net.Li
 	//return
 }
 
-func GetManager() *session.SessionMgr{
+func GetManager() *session.SessionMgr {
 	return sessionManager
 }
 
-func (engine *Engine) Run(ln net.Listener,addr... string) (err error) {
+func (engine *Engine) Run(ln net.Listener, addr ...string) (err error) {
 	defer func() { debugPrintError(err) }()
-	sessionManager =session.NewSessionMgr("goSession",3600)
-	fmt.Println("sessionManager----->",sessionManager)
+	sessionManager = session.NewSessionMgr("goSession", 3600)
+	fmt.Println("sessionManager----->", sessionManager)
 	address := resolveAddress(addr)
 	debugPrint("Listening and serving HTTP on %s\n", address)
 
-	fmt.Println("address: ",address)
+	fmt.Println("address: ", address)
 	ser := &http.Server{
 		Addr:    address,
 		Handler: engine,
@@ -353,7 +352,7 @@ func (engine *Engine) Run(ln net.Listener,addr... string) (err error) {
 	//return err
 }
 
-func (engine *Engine) GetTLSConfig(addr string) (s http.Server ,err error){
+func (engine *Engine) GetTLSConfig(addr string) (s http.Server, err error) {
 	debugPrint("Listening and serving HTTPS on %s\n", addr)
 	defer func() { debugPrintError(err) }()
 
@@ -364,14 +363,13 @@ func (engine *Engine) GetTLSConfig(addr string) (s http.Server ,err error){
 	engine.registerHandlers()
 	//err = http.ListenAndServeTLS(addr, certFile, keyFile, engine)
 	http2.ConfigureServer(&srv, &http2.Server{})
-	return srv,err
+	return srv, err
 }
 
 // RunTLS attaches the router to a http.Server and starts listening and serving HTTPS (secure) requests.
 // It is a shortcut for http.ListenAndServeTLS(addr, certFile, keyFile, router)
 // Note: this method will block the calling goroutine indefinitely unless an error happens.
-func (engine *Engine) RunTLS(srv http.Server,ln net.Listener) (err error) {
-
+func (engine *Engine) RunTLS(srv http.Server, ln net.Listener) (err error) {
 
 	go func() {
 		fmt.Println("开启http2.0")
@@ -487,7 +485,6 @@ func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	engine.pool.Put(c)
 }
-
 
 // HandleContext re-enter a context that has been rewritten.
 // This can be done by setting c.Request.Path to your new target.
