@@ -5,11 +5,11 @@
 package gin
 
 import (
-	"github.com/NiuStar/fileserver"
 	"net/http"
 	"path"
 	"regexp"
 	"strings"
+	"github.com/NiuStar/fileserver"
 )
 
 type IRouter interface {
@@ -181,7 +181,7 @@ func (group *RouterGroup) StaticFS(relativePath string, fs http.FileSystem) IRou
 
 // StaticFS works just like `Static()` but a custom `http.FileSystem` can be used instead.
 // Gin by default user: gin.Dir()
-func (group *RouterGroup) StaticFSHandler(relativePath string, fileFunc HandlerFunc) IRoutes {
+func (group *RouterGroup) StaticFSHandler(relativePath string,fileFunc HandlerFunc) IRoutes {
 
 	urlPattern := path.Join(relativePath, "/*filepath")
 	// Register GET and HEAD handlers
@@ -206,6 +206,7 @@ func (group *RouterGroup) createStaticHandler(relativePath string, fs http.FileS
 			fileServer.ServeHTTP(c.Writer, c.Request)
 		}
 
+
 	}
 }
 
@@ -217,7 +218,7 @@ func StripPrefix(prefix string, h http.Handler) http.Handler {
 		if p := strings.TrimPrefix(r.URL.Path, prefix); len(p) < len(r.URL.Path) {
 			r.URL.Path = p
 
-			if strings.LastIndex(p, "/") == len(p)-1 {
+			if strings.LastIndex(p,"/") == len(p) - 1 {
 				http.NotFound(w, r)
 			} else {
 				h.ServeHTTP(w, r)

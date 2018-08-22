@@ -7,7 +7,6 @@ package gin
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/gin-gonic/gin/render"
 	"github.com/manucorporat/sse"
@@ -19,11 +18,12 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"fmt"
 	//"io/Seeker"
 	"bytes"
-	xlog "github.com/NiuStar/log"
 	"io/ioutil"
 	"runtime/debug"
+	xlog "github.com/NiuStar/log"
 	//"github.com/gin-gonic/gin/mahonia-master"
 )
 
@@ -98,7 +98,7 @@ func (c *Context) HandlerName() string {
 // It executes the pending handlers in the chain inside the calling handler.
 // See example in github.
 //var requestBody []byte
-func (c *Context) getPostData() interface{} {
+func (c *Context)getPostData() interface{} {
 	requestBody, _ := ioutil.ReadAll(c.Request.Body)
 	c.Request.Body.Close()
 	bf := bytes.NewBuffer(requestBody)
@@ -136,13 +136,14 @@ func (c *Context) DisplayReq() {
 func (c *Context) Next() {
 	c.index++
 
+	
 	//url := c.Request.RequestURI
 
 	//method := c.Request.Method
 
 	hostData := c.Request.Host
-	hostarray := strings.Split(hostData, ":")
-	portdata := hostarray[len(hostarray)-1]
+	hostarray := strings.Split(hostData,":")
+	portdata := hostarray[len(hostarray) - 1]
 	//fmt.Println("c.request:",c.Request)
 	/*if strings.EqualFold(portdata,"10001"){
 
@@ -162,6 +163,7 @@ func (c *Context) Next() {
 		}
 	}*/
 
+
 	s := int8(len(c.handlers))
 
 	defer xlog.InitListner("")
@@ -169,31 +171,31 @@ func (c *Context) Next() {
 	//for ; c.index < s; c.index++ {
 	//	c.handlers[c.index](c)
 	//}
-	Try(func() {
+	Try(func(){
 		for ; c.index < s; c.index++ {
 			c.handlers[c.index](c)
 		}
-	}, func(err interface{}) {
+	},func(err interface{}) {
 
-		if strings.EqualFold(portdata, "30000") {
-			c.String(200, `{"State":false,"Message":"`+err.(error).Error()+`","Ext":{}}`)
-		} else {
-			c.String(200, `{"state":false,"msg":"`+err.(error).Error()+`","ext":{}}`)
+		
+		if strings.EqualFold(portdata,"30000"){
+			c.String(200,`{"State":false,"Message":"` + err.(error).Error() + `","Ext":{}}`)
+		}else{
+			c.String(200,`{"state":false,"msg":"` + err.(error).Error() + `","ext":{}}`)
 		}
-	}, string(""))
+	},string(""))
 }
-func Try(a func(), b func(err interface{}), str string) {
-	defer deal(b, str)
+func Try(a func(),b func(err interface{}),str string) {
+	defer deal(b,str)
 	a()
 }
 
-func deal(b func(e interface{}), str string) {
+func  deal(b func(e interface{}),str string) {
 	if err := recover(); err != nil {
-		xlog.WriteString(fmt.Sprintln(fmt.Sprintln() + fmt.Sprintln(str) + fmt.Sprintf(`error: %v %v`, fmt.Sprintln(err), string(debug.Stack()))))
+		xlog.WriteString(fmt.Sprintln(fmt.Sprintln() + fmt.Sprintln(str) + fmt.Sprintf(`error: %v %v`,fmt.Sprintln(err),string(debug.Stack()))))
 		b(err)
 	}
 }
-
 // IsAborted returns true if the currect context was aborted.
 func (c *Context) IsAborted() bool {
 	return c.index >= abortIndex
@@ -368,7 +370,7 @@ func (c *Context) GetPostForm(key string) (string, bool) {
 	//if !strings.EqualFold(key,"picture"){
 	//	fmt.Println("key:",key,"value:",values,"request:",req)
 	//}
-	if len(values) > 0 {
+	if  len(values) > 0 {
 		return values[0], true
 	}
 	if req.MultipartForm != nil && req.MultipartForm.File != nil {
@@ -462,13 +464,13 @@ func (c *Context) Header(key, value string) {
 }
 
 func (c *Context) SetCookie(
-	name string,
-	value string,
-	maxAge int,
-	path string,
-	domain string,
-	secure bool,
-	httpOnly bool,
+name string,
+value string,
+maxAge int,
+path string,
+domain string,
+secure bool,
+httpOnly bool,
 ) {
 	if path == "" {
 		path = "/"
@@ -542,12 +544,11 @@ func (c *Context) JSON2(code int, obj interface{}) {
 	body, err := json.Marshal(obj)
 	if err != nil {
 		//panic(err)
-		fmt.Println("toJsonErr:", err)
+		fmt.Println("toJsonErr:",err)
 	}
-	c.String(code, strings.Replace(string(body), "null", "[]", -1))
+	c.String(code, strings.Replace(string(body),"null","[]",-1))
 	return
 }
-
 // XML serializes the given struct as XML into the response body.
 // It also sets the Content-Type as "application/xml".
 func (c *Context) XML(code int, obj interface{}) {
@@ -565,6 +566,7 @@ func (c *Context) String(code int, format string, values ...interface{}) {
 		}
 	}
 
+	
 	c.Status(code)
 	render.WriteString(c.Writer, result, values)
 }
