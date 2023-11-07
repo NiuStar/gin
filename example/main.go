@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/zituocn/gin"
+	"github.com/NiuStar/gin"
 )
 
 type TestRequest struct {
