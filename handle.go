@@ -135,7 +135,10 @@ func (group *RouterGroup) writeShowdoc(domain, prefix string) {
 	}
 }
 
-func (engine *Engine) Run(userName, password string, addr ...string) error {
+func (engine *Engine) Run(addr ...string) error {
+	return engine.engine.Run(addr...)
+}
+func (engine *Engine) RunWithDoc(userName, password string, addr ...string) error {
 	uri := `https://showdoc.ai00.xyz/`
 	err := showdoc.Instance().Login(userName, password, uri)
 	if err != nil {
