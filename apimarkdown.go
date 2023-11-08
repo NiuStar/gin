@@ -18,7 +18,7 @@ func WriteToApiMarkDown(domain, method, methodName, router string, notes string,
 	api2 := &showdoc.API{}
 	api2.CatName = notes
 	api2.PageContent = apimk.Content()
-	api2.PageTitle = methodName
+	api2.PageTitle = router
 	err := showdoc.Instance().WriteToApiMarkDown(api2)
 	if err != nil {
 		//logrus.Warningln()
