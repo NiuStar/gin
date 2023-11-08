@@ -42,6 +42,18 @@ func Default(projectName string) *Engine {
 	return &Engine{projectName: projectName, engine: gin.Default()}
 }
 
+func (engine *Engine) Use(middleware ...HandlerFunc) gin.IRoutes {
+	return engine.engine.Use(func(ctx *gin.Context) {
+		middleware[0](&Context{ctx})
+	})
+}
+func (engine *Engine) GET(relativePath string, request, response interface{}, handlers ...HandlerFunc) gin.IRoutes {
+	return engine.Handle("GET", relativePath, request, response, handlers...)
+}
+func (engine *Engine) POST(relativePath string, request, response interface{}, handlers ...HandlerFunc) gin.IRoutes {
+	return engine.Handle("POST", relativePath, request, response, handlers...)
+}
+
 func (engine *Engine) Handle(httpMethod, relativePath string, request, response interface{}, handlers ...HandlerFunc) gin.IRoutes {
 	for _, handler := range handlers {
 		engine.handlers = append(engine.handlers, &HandlerFuncStruct{method: httpMethod, function: handler, router: relativePath, request: request, response: response})
@@ -68,7 +80,12 @@ func (engine *Engine) Group(path string, request, response interface{}, handlers
 	engine.groups = append(engine.groups, group)
 	return group
 }
-
+func (group *RouterGroup) GET(relativePath string, request, response interface{}, handlers ...HandlerFunc) gin.IRoutes {
+	return group.Handle("GET", relativePath, request, response, handlers...)
+}
+func (group *RouterGroup) POST(relativePath string, request, response interface{}, handlers ...HandlerFunc) gin.IRoutes {
+	return group.Handle("POST", relativePath, request, response, handlers...)
+}
 func (group *RouterGroup) Group(path string, request, response interface{}, handlers ...HandlerFunc) *RouterGroup {
 	for _, handler := range handlers {
 		group.handlers = append(group.handlers, &HandlerFuncStruct{function: handler, router: path, request: request, response: response})
