@@ -31,3 +31,5 @@ func DefaultWriter() io.Writer {
 func DebugPrintRouteFunc(httpMethod, absolutePath, handlerName string, nuHandlers int) {
 	gin.DebugPrintRouteFunc(httpMethod, absolutePath, handlerName, nuHandlers)
 }
+
+type H map[string]any
