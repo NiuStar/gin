@@ -146,6 +146,9 @@ func parseParamTags(request reflect.Type, index int, indexs ...int) (list []*Par
 	indexs2 := make([]int, 0)
 	indexs2 = append(indexs2, indexs...)
 	indexs2 = append(indexs2, index)
+	if request.Kind() == reflect.Pointer {
+		request = request.Elem()
+	}
 	for i := 0; i < request.NumField(); i++ {
 		paramTags := &ParamTags{}
 		list3 := make([]*ParamTags, 0)
