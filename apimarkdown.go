@@ -165,6 +165,11 @@ func parseParamTags(request reflect.Type, index int, indexs ...int) (list []*Par
 				list2 := parseParamTags(fieldType, i, indexs2...)
 				list3 = append(list3, list2...)
 			}
+			if fieldType.Kind() == reflect.Slice {
+				fieldType = fieldType.Elem()
+				list2 := parseParamTags(fieldType, i, indexs2...)
+				list3 = append(list3, list2...)
+			}
 		}
 		paramTags.Name = request.Field(i).Name
 		paramTags.Tags = paramsKeyMap
