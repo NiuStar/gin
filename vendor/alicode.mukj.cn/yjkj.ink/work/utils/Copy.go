@@ -156,8 +156,38 @@ func getValue(obj interface{}, rType reflect.Type) reflect.Value {
 		fmt.Println("v1", v1.Type())
 		if v1.Kind() == reflect.Ptr {
 			v.Elem().Set(v1.Elem())
+		} else if v.Kind() == reflect.Ptr {
+			if v.Elem().Kind() == reflect.Int {
+				if v1.Kind() == reflect.Float64 {
+					v.Elem().SetInt(int64(v1.Float()))
+				} else {
+					fmt.Println("类型不一致：v1", v1.Interface(), "v .kind", v.Elem().Kind())
+				}
+			} else if v.Elem().Kind() == reflect.Bool {
+				if v1.Kind() == reflect.String {
+					if strings.ToLower(v1.String()) == "true" {
+						v.Elem().SetBool(true)
+					} else {
+						v.Elem().SetBool(false)
+					}
+				} else if v1.Kind() == reflect.Float64 {
+					if v1.Float() == 1 {
+						v.Elem().SetBool(true)
+					} else {
+						v.Elem().SetBool(false)
+					}
+				} else if v1.Kind() == reflect.Bool {
+					v.Elem().SetBool(v1.Bool())
+				} else {
+					fmt.Println("类型不一致：v1", v1.Interface(), "v .kind", v.Elem().Kind())
+				}
+			} else if v.Elem().Kind() == v1.Kind() {
+				v.Elem().Set(v1)
+			} else {
+				v.Elem().Set(v1.Convert(v.Elem().Type()))
+			}
 		} else {
-			v.Elem().Set(v1)
+			v.Elem().Set(v1.Convert(v.Elem().Type()))
 		}
 		return v
 	} else if kind != reflect.Struct && kind != reflect.Slice {
@@ -169,6 +199,9 @@ func getValue(obj interface{}, rType reflect.Type) reflect.Value {
 	if rType2.Kind() == reflect.Struct {
 		v := reflect.New(rType2)
 		mapObj := obj.(map[string]interface{})
+		for k, v := range mapObj {
+			mapObj[strings.ToLower(k)] = v
+		}
 		for i := 0; i < rType2.NumField(); i++ {
 
 			mapObj2 := getMapValueByKeys(mapObj, rType2.Field(i))
@@ -177,7 +210,7 @@ func getValue(obj interface{}, rType reflect.Type) reflect.Value {
 			}
 			v1 := getValue(mapObj2, rType2.Field(i).Type)
 			if v1.Kind() == v.Elem().Field(i).Kind() {
-				v.Elem().Field(i).Set(v1)
+				v.Elem().Field(i).Set(v1.Convert(v.Elem().Field(i).Type()))
 			} else {
 				copyObject(v.Elem().Field(i), v1)
 			}
@@ -232,6 +265,26 @@ func getValue(obj interface{}, rType reflect.Type) reflect.Value {
 					obj = int64(obj.(int))
 				}
 			}
+		} else if rType2.Kind() == reflect.Bool {
+			switch obj.(type) {
+			case float64:
+				{
+					if obj.(float64) == 1 {
+						obj = true
+					} else {
+						obj = false
+					}
+				}
+			case string:
+				{
+					objlower := strings.ToLower(obj.(string))
+					if objlower == "1" || objlower == "true" {
+						obj = true
+					} else {
+						obj = false
+					}
+				}
+			}
 		}
 		return reflect.ValueOf(obj)
 	}
@@ -253,6 +306,12 @@ func copyValue(dest reflect.Value, src reflect.Value) {
 		dest.SetFloat(float64(src.Int()))
 	} else if dest.CanInt() && src.CanFloat() {
 		dest.SetInt(int64(src.Float()))
+	} else if dest.Kind() == reflect.Bool && src.Kind() == reflect.String {
+		if strings.ToLower(src.String()) == "true" {
+			dest.SetBool(true)
+		} else {
+			dest.SetBool(false)
+		}
 	} else {
 		fmt.Println("copyValue: can not copy", dest.Kind(), src.Kind())
 	}
@@ -484,6 +543,9 @@ func CopyTo(src, dst interface{}) error {
 	srcType := srcValue.Type()
 	if srcType.Kind() == reflect.String {
 		if dstValue.Type().PkgPath() == "alicode.mukj.cn/yjkj.ink/work/utils/time.v2" {
+			if srcValue.String() == "" {
+				return errors.New("srcValue time is empty")
+			}
 			tm, err := time.Parse("2006-01-02 15:04:05", srcValue.String())
 			if err != nil {
 				tm, err = time.Parse("2006-01-02", srcValue.String())
@@ -514,8 +576,12 @@ func CopyTo(src, dst interface{}) error {
 				field.Set(reflect.New(field.Type().Elem()))
 				if field.Elem().Kind() == reflect.Struct {
 					dstInterface := reflect.New(field.Type()).Interface()
-					CopyTo(srcValue.Field(i).Interface(), dstInterface)
-					field.Set(reflect.ValueOf(dstInterface).Elem())
+					if err := CopyTo(srcValue.Field(i).Interface(), dstInterface); err == nil {
+						field.Set(reflect.ValueOf(dstInterface).Elem())
+					} else {
+						field.Set(reflect.Zero(field.Type()))
+					}
+
 				} else {
 					field.Elem().Set(srcValue.Field(i))
 				}
@@ -659,4 +725,108 @@ func copyObject(dst, src reflect.Value) {
 		}
 	}
 
+}
+
+func CopyReflectValue(srcValue, dstValue reflect.Value) reflect.Value {
+	srcValue = reflect.Indirect(srcValue)
+
+	var dstValue2 reflect.Value
+	if dstValue.IsZero() {
+		if dstValue.Type().Kind() == reflect.Ptr {
+			dstValue2 = reflect.New(dstValue.Type().Elem()).Elem()
+
+		} else {
+			dstValue2 = reflect.New(dstValue.Type()).Elem()
+
+		}
+	} else {
+		dstValue2 = dstValue
+	}
+	if srcValue.IsZero() {
+		dstValue.Set(dstValue2)
+		return dstValue2
+	}
+	if !dstValue2.IsValid() {
+		fmt.Println("123456")
+	}
+	if dstValue2.IsValid() && dstValue2.IsZero() {
+		fmt.Println("111")
+	}
+	if srcValue.Type() == dstValue2.Type() {
+		if dstValue.Type().Kind() == reflect.Ptr {
+			dstValue.Elem().Set(srcValue)
+			return dstValue
+
+		} else {
+			dstValue.Set(srcValue)
+		}
+
+		return dstValue
+	}
+	if srcValue.Kind() == reflect.Struct && dstValue2.Kind() == reflect.Struct {
+		return CopyReflectStruct(srcValue, dstValue2)
+	} else if srcValue.Kind() == reflect.Slice && dstValue2.Kind() == reflect.Slice {
+		return CopyReflectSlice(srcValue, dstValue2)
+	} else if srcValue.Kind() == reflect.Slice && dstValue2.Kind() == reflect.Struct {
+		if srcValue.Len() > 0 {
+			return CopyReflectStruct(srcValue.Index(0), dstValue2)
+		}
+	} else if srcValue.Kind() == reflect.Struct && dstValue2.Kind() == reflect.Slice {
+		dstValueItem := reflect.New(dstValue.Type().Elem()).Elem()
+		dstValueItem = CopyReflectValue(srcValue, dstValueItem)
+		fmt.Println("dstValueItem", dstValueItem.Interface())
+		dstValue2 = reflect.Append(dstValue2, dstValueItem.Addr())
+
+	} else if srcValue.Kind() == reflect.Struct && dstValue2.Kind() == reflect.Ptr {
+		if dstValue2.Elem().Type() == srcValue.Type() {
+			dstValue2.Elem().Set(srcValue)
+		} else {
+			dstValue2.Elem().Set(CopyReflectStruct(srcValue, dstValue2.Elem()))
+		}
+
+	} else if srcValue.Kind() == reflect.Slice && dstValue2.Kind() == reflect.Ptr {
+		if srcValue.Len() > 0 {
+			return CopyReflectStruct(srcValue.Index(0), dstValue2.Elem())
+		}
+	} else {
+		fmt.Println("srcValue.Kind()", srcValue.Kind())
+		fmt.Println("dstValue.Kind()", dstValue2.Kind())
+	}
+	/*	if dstValue.Type().Kind() == dstValue2.Type().Kind() {
+			fmt.Println("dstValue.CanAddr()",dstValue.CanAddr())
+			fmt.Println("dstValue2.CanAddr()",dstValue2.CanAddr())
+			fmt.Println("srcValue.Kind()",srcValue.Kind())
+			fmt.Println("dstValue.Kind()",dstValue2.Kind())
+			dstValue.Set(dstValue2)
+
+		} else {
+			dstValue.Set(dstValue2.Addr())
+
+		}*/
+	return dstValue2
+}
+func CopyReflectSlice(srcValue, dstValue reflect.Value) reflect.Value {
+	if srcValue.Kind() == reflect.Slice && dstValue.Kind() == reflect.Slice {
+		for i := 0; i < srcValue.Len(); i++ {
+			srcValueItem := srcValue.Index(i)
+			dstValueItem := reflect.New(dstValue.Type().Elem()).Elem()
+			dstValueItem = CopyReflectValue(srcValueItem, dstValueItem)
+			fmt.Println("dstValueItem", dstValueItem.Interface())
+			dstValue = reflect.Append(dstValue, dstValueItem.Addr())
+			fmt.Println("dstValue", dstValue.Interface())
+
+		}
+	}
+	return dstValue
+}
+func CopyReflectStruct(srcValue, dstValue reflect.Value) reflect.Value {
+	for i := 0; i < srcValue.NumField(); i++ {
+		if srcValue.Type().Field(i).IsExported() {
+			dstField := dstValue.FieldByName(srcValue.Type().Field(i).Name)
+			CopyReflectValue(srcValue.Field(i), dstField)
+			fmt.Println(srcValue.Type().Field(i).Name, srcValue.Field(i).Interface(), dstField.Interface())
+		}
+	}
+	fmt.Println("dstValue", dstValue.Interface())
+	return dstValue
 }

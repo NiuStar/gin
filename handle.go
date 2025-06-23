@@ -138,9 +138,9 @@ func (group *RouterGroup) writeShowdoc(domain, prefix string) {
 func (engine *Engine) Run(addr ...string) error {
 	return engine.engine.Run(addr...)
 }
-func (engine *Engine) RunWithDoc(userName, password, docApi string, addr ...string) error {
+func (engine *Engine) RunWithDoc(userName, loginSecretKey, docApi string, addr ...string) error {
 	uri := docApi
-	err := showdoc.Instance().Login(userName, password, uri)
+	err := showdoc.Instance().Login2(userName, loginSecretKey, "", uri)
 	if err != nil {
 		fmt.Println("showdoc login err:", err)
 	} else {

@@ -2,18 +2,23 @@ package showdoc
 
 import (
 	http2 "alicode.mukj.cn/yjkj.ink/work/http"
+	"alicode.mukj.cn/yjkj.ink/work/utils"
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"sync"
+	"time"
 )
 
 type ShowDoc struct {
-	UserName string
-	Password string
-	Host     string
-	Header   http.Header
-	ApiKey   *ApiKey
+	UserName       string
+	Password       string
+	LoginSecretKey string
+	Host           string
+	Header         http.Header
+	ApiKey         *ApiKey
 }
 
 type Response struct {
@@ -44,6 +49,7 @@ func (doc *ShowDoc) Login(userName, password, host string) error {
 		fmt.Println("登录showdoc失败2,", string(resp.Byte()))
 		return errors.New(string(resp.Byte()))
 	}
+
 	if result.ErrorCode == 0 {
 		doc.Header = resp.Header()
 		doc.UserName = userName
@@ -52,6 +58,50 @@ func (doc *ShowDoc) Login(userName, password, host string) error {
 	}
 	fmt.Println("登录showdoc失败3,", string(resp.Byte()))
 	return errors.New(string(resp.Byte()))
+}
+func createToken(username, logintoken, tm string) string {
+	return utils.MD5(username + logintoken + tm)
+}
+func (doc *ShowDoc) Login2(userName, loginSecretKey,password, host string) error {
+	/*user := map[string]string{"username": userName, "password": password}
+	doc.Host = host
+	resp := http2.POSTFormData(fmt.Sprintf("%s%s", host, Login), user)
+	if resp.Error() != nil {
+		fmt.Println("登录showdoc失败1,", resp.Error())
+		return resp.Error()
+	}
+	var result *Response
+	err := resp.Resp(&result)
+	if err != nil {
+		fmt.Println("登录showdoc失败2,", string(resp.Byte()))
+		return errors.New(string(resp.Byte()))
+	}*/
+	tm := strconv.Itoa(int(time.Now().Unix()))
+	token := createToken(userName, loginSecretKey, tm)
+	oapi := host + `/server/?s=/api/extLogin/bySecretKey&username=%s&time=%s&token=%s`
+	api := fmt.Sprintf(oapi, userName, tm, token)
+
+	resp := http2.GET(api, nil)
+	var result *Response
+	err := resp.Resp(&result)
+	if err == nil {
+		fmt.Println("登录showdoc失败3,", string(resp.Byte()))
+
+		fmt.Println("请先在showdoc中创建非showdoc账户，并使用showdoc创建团队为团队管理员，将管理后台->集成登录->通用登陆token复制为密码")
+		return errors.New("请先在showdoc中创建非showdoc账户，并使用showdoc创建团队为团队管理员，将管理后台->集成登录->通用登陆token复制为密码")
+	}
+	doc.Header = http.Header{}
+	for key, hs := range resp.Header() {
+		if strings.ToLower(key) == "set-cookie" {
+			for _, h := range hs {
+				doc.Header.Add("cookie", h)
+			}
+		}
+	}
+	doc.Host = host
+	doc.UserName = userName
+	doc.Password = loginSecretKey
+	return nil
 }
 
 func (doc *ShowDoc) GetServiceList() *ItemResponse {

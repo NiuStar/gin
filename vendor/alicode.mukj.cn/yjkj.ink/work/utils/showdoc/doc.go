@@ -63,7 +63,7 @@ func (doc *ShowDoc) CreateApiKey(name string) *ApiKey {
 		item := doc.GetServiceByName(name)
 		if item != nil {
 
-			err := doc.DeleteService(item.ItemID)
+			err := doc.RefreshServiceInfo(item.ItemID)
 			if err != nil {
 				fmt.Println("删除服务文档失败：", err)
 				resp := doc.GetApiKey(item.ItemID)

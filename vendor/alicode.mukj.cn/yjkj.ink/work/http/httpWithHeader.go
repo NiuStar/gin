@@ -53,12 +53,12 @@ func RequestFormDataWithHeader(method, uri string, postData map[string]string, h
 	return RequestWithHeader(method, uri, w.FormDataContentType(), body.String(), header2)
 }
 
-func POSTFormUrlDecodeWithHeader(uri string, postData map[string]string,header2 *http.Header) (resp *HttpResponse) {
+func POSTFormUrlDecodeWithHeader(uri string, postData map[string]string, header2 *http.Header) (resp *HttpResponse) {
 	value := url.Values{}
 	for key, d := range postData {
 		value.Add(key, d)
 	}
-	return RequestWithHeader("POST", uri, "application/x-www-form-urlencoded", value.Encode(),header2)
+	return RequestWithHeader("POST", uri, "application/x-www-form-urlencoded", value.Encode(), header2)
 }
 
 func RequestWithHeader(method, uri, contentType, payload string, header2 *http.Header) (resp *HttpResponse) {
@@ -90,7 +90,7 @@ func RequestWithHeader(method, uri, contentType, payload string, header2 *http.H
 		}
 	}
 
-	r, err1, header, statu:= do(req)
+	r, err1, header, statu := do(req)
 	resp = &HttpResponse{}
 	resp.err = err1
 	resp.header = header
@@ -175,4 +175,34 @@ func PostFilesWithHeader2(uri string, params map[string]string, files map[string
 		return &HttpResponse{err: err}
 	}
 	return RequestWithHeader("POST", uri, writer.FormDataContentType(), body.String(), header2)
+}
+
+// 上传文件
+// uri                请求地址
+// params        post form里数据
+// files  key 请求地址上传文件对应field value  上传文件路径
+// file               文件
+func PatchFileWithHeader(uri, fileName string, file *os.File, header2 *http.Header) (resp *HttpResponse) {
+	body := new(bytes.Buffer)
+
+	writer := multipart.NewWriter(body)
+
+	// 创建一个文件字段，并将文件写入请求体
+	part, err := writer.CreateFormFile("file", fileName)
+	if err != nil {
+		fmt.Println("Error creating form file:", err)
+		return
+	}
+
+	// 将文件内容写入表单字段
+	_, err = io.Copy(part, file)
+	if err != nil {
+		fmt.Println("Error copying file:", err)
+		return
+	}
+	err = writer.Close()
+	if err != nil {
+		return &HttpResponse{err: err}
+	}
+	return RequestWithHeader("PATCH", uri, writer.FormDataContentType(), body.String(), header2)
 }
