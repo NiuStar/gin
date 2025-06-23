@@ -3,6 +3,7 @@ package gin
 import (
 	"alicode.mukj.cn/yjkj.ink/work/apidoc"
 	"alicode.mukj.cn/yjkj.ink/work/utils/showdoc"
+	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/url"
@@ -138,11 +139,19 @@ func (group *RouterGroup) writeShowdoc(domain, prefix string) {
 func (engine *Engine) Run(addr ...string) error {
 	return engine.engine.Run(addr...)
 }
+
+type Error struct {
+	ErrorCode    int    `json:"error_code"`
+	ErrorMessage string `json:"error_message"`
+}
+
 func (engine *Engine) RunWithDoc(userName, loginSecretKey, docApi string, addr ...string) error {
 	uri := docApi
 	err := showdoc.Instance().Login2(userName, loginSecretKey, "", uri)
 	if err != nil {
-		fmt.Println("showdoc login err:", err)
+		var errI Error
+		json.Unmarshal([]byte(err.Error()), &errI)
+		fmt.Println("showdoc login err:", errI.ErrorMessage)
 	} else {
 		showdoc.Instance().CreateApiKey(engine.projectName)
 
