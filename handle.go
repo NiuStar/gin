@@ -151,9 +151,9 @@ type Error struct {
 	ErrorMessage string `json:"error_message"`
 }
 
-func (engine *Engine) RunWithDoc(userName, loginSecretKey, docApi string, addr ...string) error {
-	uri := docApi
-	err := showdoc.Instance().Login2(userName, loginSecretKey, "", uri)
+func (engine *Engine) RunWithDoc(userName, loginSecretKey, docApi, host string, addr ...string) error {
+	uri := host
+	err := showdoc.Instance().Login2(userName, loginSecretKey, "", docApi)
 	if err != nil {
 		var errI Error
 		json.Unmarshal([]byte(err.Error()), &errI)
