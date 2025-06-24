@@ -115,6 +115,12 @@ func (group *RouterGroup) Handle(httpMethod, relativePath string, request, respo
 	return group.routerGroup.Handle(httpMethod, relativePath, handlers2...)
 }
 
+func (group *RouterGroup) Use(handler HandlerFunc) gin.IRoutes {
+	var handler2 = func(ctx *gin.Context) {
+		handler(&Context{ctx})
+	}
+	return group.routerGroup.Use(handler2)
+}
 func (group *RouterGroup) writeShowdoc(domain, prefix string) {
 
 	if strings.HasSuffix(prefix, "/") {
