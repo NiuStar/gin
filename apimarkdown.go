@@ -143,6 +143,9 @@ func (param *ParamTags) Get(keys []string) []string {
 	return params
 }
 func parseParamTags(request reflect.Type, index int, indexs ...int) (list []*ParamTags) {
+	if len(indexs) > index+2 {
+		return nil
+	}
 	indexs2 := make([]int, 0)
 	indexs2 = append(indexs2, indexs...)
 	indexs2 = append(indexs2, index)
