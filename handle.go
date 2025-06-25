@@ -114,7 +114,13 @@ func (group *RouterGroup) Handle(httpMethod, relativePath string, request, respo
 	}
 	return group.routerGroup.Handle(httpMethod, relativePath, handlers2...)
 }
-
+func (group *RouterGroup) Any(relativePath string, handlers ...HandlerFunc) gin.IRoutes {
+	return group.routerGroup.Any(relativePath, func(ctx *gin.Context) {
+		for _, handler := range handlers {
+			handler(&Context{ctx})
+		}
+	})
+}
 func (group *RouterGroup) Use(handler HandlerFunc) gin.IRoutes {
 	var handler2 = func(ctx *gin.Context) {
 		handler(&Context{ctx})
